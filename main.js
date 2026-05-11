@@ -58,7 +58,7 @@ svg.call(
 // -----------------------------
 
 Promise.all([
-  d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json"),
+  d3.json("https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json"),
   d3.csv("data/chill_days.csv", d => ({
     lat: +d.lat,
     lon: +d.lon,
@@ -66,13 +66,12 @@ Promise.all([
     scenario: d.scenario,
     chill_days: +d.chill_days
   }))
-]).then(([us, data]) => {
+]).then(([statesGeoJSON, data]) => {
   climateData = data;
 
-  const states = topojson.feature(us, us.objects.states).features;
-  const nation = topojson.feature(us, us.objects.nation);
+  const states = statesGeoJSON.features;
 
-  createClipPath(nation);
+  createClipPath(states);
   drawBaseMap(states);
 
   initializeControls();
@@ -84,12 +83,14 @@ Promise.all([
 // Clip path for U.S. shape
 // -----------------------------
 
-function createClipPath(nation) {
+function createClipPath(states) {
   svg.append("defs")
     .append("clipPath")
     .attr("id", "us-clip")
-    .append("path")
-    .attr("d", path(nation));
+    .selectAll("path")
+    .data(states)
+    .join("path")
+    .attr("d", path);
 
   climateLayer.attr("clip-path", "url(#us-clip)");
 }
