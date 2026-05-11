@@ -47,10 +47,14 @@ const suitabilityColor = d3.scaleDiverging()
 // SVG layers
 // -----------------------------
 
+const defs = svg.append("defs");
+const clipPath = defs.append("clipPath").attr("id", "us-clip");
+
 const g = svg.append("g");
 
 const climateLayer = g.append("g")
-  .attr("class", "climate-layer");
+  .attr("class", "climate-layer")
+  .attr("clip-path", "url(#us-clip)");
 
 const stateOutlineLayer = g.append("g")
   .attr("class", "state-outline-layer");
@@ -131,13 +135,23 @@ function setupRectangularProjection() {
   const minLat = d3.min(climateData, d => d.lat);
   const maxLat = d3.max(climateData, d => d.lat);
 
+  const midLat = (minLat + maxLat) / 2;
+  const lonCos = Math.cos(midLat * Math.PI / 180);
+
+  const lonSpan = (maxLon - minLon) * lonCos;
+  const latSpan = maxLat - minLat;
+
+  const k = Math.min(width / lonSpan, height / latSpan);
+  const xOffset = (width - lonSpan * k) / 2;
+  const yOffset = (height - latSpan * k) / 2;
+
   xScale = d3.scaleLinear()
     .domain([minLon, maxLon])
-    .range([0, width]);
+    .range([xOffset, xOffset + lonSpan * k]);
 
   yScale = d3.scaleLinear()
     .domain([minLat, maxLat])
-    .range([height, 0]);
+    .range([height - yOffset, yOffset]);
 
   const rectangularProjection = d3.geoTransform({
     point: function(lon, lat) {
@@ -153,6 +167,11 @@ function setupRectangularProjection() {
 // -----------------------------
 
 function drawStateOutlines() {
+  clipPath.selectAll("path")
+    .data(states)
+    .join("path")
+    .attr("d", path);
+
   stateOutlineLayer.selectAll(".state-outline")
     .data(states)
     .join("path")
