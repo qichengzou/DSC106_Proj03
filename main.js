@@ -3,9 +3,13 @@
 // -----------------------------
 
 const width = 960;
-const height = 600;
+const height = 430;
 
-const svg = d3.select("#map");
+const svg = d3.select("#map")
+  .attr("width", width)
+  .attr("height", height)
+  .attr("viewBox", `0 0 ${width} ${height}`)
+  .attr("preserveAspectRatio", "xMidYMid meet");
 
 const tooltip = d3.select("#tooltip")
   .style("position", "absolute")
@@ -24,90 +28,139 @@ const fruitThresholds = {
 };
 
 let climateData = [];
+let states = [];
+
 let selectedFruit = "Apple";
-let selectedScenario = "ssp126";
-let selectedYear = 2020;
+let selectedScenario = null;
+let selectedYear = null;
 
-const projection = d3.geoAlbersUsa()
-  .translate([width / 2, height / 2])
-  .scale(1200);
-
-const path = d3.geoPath().projection(projection);
+let xScale;
+let yScale;
+let path;
 
 const suitabilityColor = d3.scaleDiverging()
   .domain([-60, 0, 60])
-  .interpolator(d3.interpolateRdYlBu);
+  .interpolator(d3.interpolateRdYlBu)
+  .clamp(true);
 
-// Main zoom group
+// -----------------------------
+// SVG layers
+// -----------------------------
+
 const g = svg.append("g");
 
-const climateLayer = g.append("g").attr("class", "climate-layer");
-const stateLayer = g.append("g").attr("class", "state-layer");
+const climateLayer = g.append("g")
+  .attr("class", "climate-layer");
 
-// Zoom behavior
-svg.call(
-  d3.zoom()
-    .scaleExtent([1, 8])
-    .on("zoom", event => {
-      g.attr("transform", event.transform);
-    })
-);
+const stateOutlineLayer = g.append("g")
+  .attr("class", "state-outline-layer");
+
+// Zoom: users can zoom in, but not zoom out beyond full map.
+const zoom = d3.zoom()
+  .scaleExtent([1, 8])
+  .extent([[0, 0], [width, height]])
+  .translateExtent([[0, 0], [width, height]])
+  .on("zoom", event => {
+    g.attr("transform", event.transform);
+  });
+
+svg.call(zoom);
 
 // -----------------------------
 // Load data
 // -----------------------------
 
 Promise.all([
-  d3.json("https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json"),
-  d3.csv("data/chill_days.csv", d => ({
-    lat: +d.lat,
-    lon: +d.lon,
-    year: +d.year,
-    scenario: d.scenario,
-    chill_days: +d.chill_days
-  }))
+  d3.json("data/us-states.json"),
+  d3.csv("data/chill_days.csv", d => {
+    let lon = +d.lon;
+
+    if (lon > 180) {
+      lon = lon - 360;
+    }
+
+    return {
+      lat: +d.lat,
+      lon,
+      year: +d.year,
+      scenario: d.scenario,
+      chill_days: +d.chill_days
+    };
+  })
 ]).then(([statesGeoJSON, data]) => {
-  climateData = data;
+  const excludedStates = new Set([
+    "Alaska",
+    "Hawaii",
+    "Puerto Rico"
+  ]);
 
-  const states = statesGeoJSON.features;
+  states = statesGeoJSON.features.filter(
+    d => !excludedStates.has(d.properties.name)
+  );
 
-  createClipPath(states);
-  drawBaseMap(states);
+  climateData = data.filter(d =>
+    Number.isFinite(d.lat) &&
+    Number.isFinite(d.lon) &&
+    Number.isFinite(d.year) &&
+    Number.isFinite(d.chill_days) &&
+    d.scenario
+  );
 
+  setupRectangularProjection();
+
+  console.log("Loaded climate rows:", climateData.length);
+  console.log("Climate sample:", climateData.slice(0, 5));
+  console.log("Years:", uniqueYears());
+  console.log("Scenarios:", uniqueScenarios());
+
+  drawStateOutlines();
   initializeControls();
   initializeYearSlider();
   updateVisualization();
+}).catch(error => {
+  console.error("Data loading failed:", error);
 });
 
 // -----------------------------
-// Clip path for U.S. shape
+// Rectangular lon/lat transform
 // -----------------------------
 
-function createClipPath(states) {
-  svg.append("defs")
-    .append("clipPath")
-    .attr("id", "us-clip")
-    .selectAll("path")
-    .data(states)
-    .join("path")
-    .attr("d", path);
+function setupRectangularProjection() {
+  const minLon = d3.min(climateData, d => d.lon);
+  const maxLon = d3.max(climateData, d => d.lon);
+  const minLat = d3.min(climateData, d => d.lat);
+  const maxLat = d3.max(climateData, d => d.lat);
 
-  climateLayer.attr("clip-path", "url(#us-clip)");
+  xScale = d3.scaleLinear()
+    .domain([minLon, maxLon])
+    .range([0, width]);
+
+  yScale = d3.scaleLinear()
+    .domain([minLat, maxLat])
+    .range([height, 0]);
+
+  const rectangularProjection = d3.geoTransform({
+    point: function(lon, lat) {
+      this.stream.point(xScale(lon), yScale(lat));
+    }
+  });
+
+  path = d3.geoPath().projection(rectangularProjection);
 }
 
 // -----------------------------
-// Base map
+// State outlines
 // -----------------------------
 
-function drawBaseMap(states) {
-  stateLayer.selectAll(".state")
+function drawStateOutlines() {
+  stateOutlineLayer.selectAll(".state-outline")
     .data(states)
     .join("path")
-    .attr("class", "state")
+    .attr("class", "state-outline")
     .attr("d", path)
     .attr("fill", "none")
-    .attr("stroke", "white")
-    .attr("stroke-width", 0.8)
+    .attr("stroke", "#444")
+    .attr("stroke-width", 0.7)
     .attr("pointer-events", "none");
 }
 
@@ -123,7 +176,11 @@ function initializeControls() {
     .attr("value", d => d)
     .text(d => d);
 
-  const scenarios = Array.from(new Set(climateData.map(d => d.scenario))).sort();
+  const scenarios = uniqueScenarios();
+
+  selectedScenario = scenarios.includes("ssp126")
+    ? "ssp126"
+    : scenarios[0];
 
   d3.select("#scenario-select")
     .selectAll("option")
@@ -132,23 +189,23 @@ function initializeControls() {
     .attr("value", d => d)
     .text(d => formatScenario(d));
 
-  selectedScenario = scenarios.includes("ssp126") ? "ssp126" : scenarios[0];
+  d3.select("#fruit-select")
+    .property("value", selectedFruit)
+    .on("change", function () {
+      selectedFruit = this.value;
+      updateVisualization();
+    });
 
-  d3.select("#scenario-select").property("value", selectedScenario);
-
-  d3.select("#fruit-select").on("change", function () {
-    selectedFruit = this.value;
-    updateVisualization();
-  });
-
-  d3.select("#scenario-select").on("change", function () {
-    selectedScenario = this.value;
-    updateVisualization();
-  });
+  d3.select("#scenario-select")
+    .property("value", selectedScenario)
+    .on("change", function () {
+      selectedScenario = this.value;
+      updateVisualization();
+    });
 }
 
 function initializeYearSlider() {
-  const years = Array.from(new Set(climateData.map(d => d.year))).sort((a, b) => a - b);
+  const years = uniqueYears();
 
   selectedYear = years[0];
 
@@ -167,52 +224,45 @@ function initializeYearSlider() {
 }
 
 // -----------------------------
-// Main visualization update
+// Main update
 // -----------------------------
 
 function updateVisualization() {
-  const requiredChillDays = fruitThresholds[selectedFruit];
-
   const filteredData = climateData.filter(d =>
     d.year === selectedYear &&
     d.scenario === selectedScenario
   );
 
-  const points = filteredData
-    .map(d => {
-      const projected = projection([d.lon, d.lat]);
-      if (!projected) return null;
+  if (filteredData.length === 0) {
+    climateLayer.selectAll(".climate-cell").remove();
+    updateSummary(filteredData);
+    return;
+  }
 
-      return {
-        ...d,
-        x: projected[0],
-        y: projected[1]
-      };
-    })
-    .filter(d => d !== null);
+  const latStep = getMedianSpacing(filteredData.map(d => d.lat));
+  const lonStep = getMedianSpacing(filteredData.map(d => d.lon));
 
-  if (points.length === 0) return;
-
-  // Voronoi turns separate grid points into connected surface cells
-  const delaunay = d3.Delaunay.from(points, d => d.x, d => d.y);
-  const voronoi = delaunay.voronoi([0, 0, width, height]);
+  const cells = filteredData.map(d => ({
+    ...d,
+    cellPath: makeRectangularCellPath(d, latStep, lonStep)
+  }));
 
   climateLayer.selectAll(".climate-cell")
-    .data(points, d => `${d.lat}-${d.lon}`)
+    .data(cells, d => `${d.lat}-${d.lon}`)
     .join(
       enter => enter.append("path")
         .attr("class", "climate-cell")
-        .attr("d", (d, i) => voronoi.renderCell(i))
+        .attr("d", d => d.cellPath)
         .attr("fill", d => getFruitSuitabilityColor(d))
         .attr("stroke", "none")
-        .attr("opacity", 0.9)
+        .attr("opacity", 0.92)
         .on("mousemove", showTooltip)
         .on("mouseleave", hideTooltip),
 
       update => update
         .transition()
         .duration(250)
-        .attr("d", (d, i) => voronoi.renderCell(i))
+        .attr("d", d => d.cellPath)
         .attr("fill", d => getFruitSuitabilityColor(d)),
 
       exit => exit.remove()
@@ -222,13 +272,60 @@ function updateVisualization() {
 }
 
 // -----------------------------
+// Climate cell drawing
+// -----------------------------
+
+function makeRectangularCellPath(d, latStep, lonStep) {
+  const overlap = 1.02;
+
+  const halfLat = (latStep * overlap) / 2;
+  const halfLon = (lonStep * overlap) / 2;
+
+  const x0 = xScale(d.lon - halfLon);
+  const x1 = xScale(d.lon + halfLon);
+  const y0 = yScale(d.lat + halfLat);
+  const y1 = yScale(d.lat - halfLat);
+
+  return `
+    M ${x0},${y0}
+    L ${x1},${y0}
+    L ${x1},${y1}
+    L ${x0},${y1}
+    Z
+  `;
+}
+
+function getMedianSpacing(values) {
+  const unique = Array.from(new Set(values.map(v => +v.toFixed(6))))
+    .sort((a, b) => a - b);
+
+  const diffs = unique
+    .slice(1)
+    .map((v, i) => v - unique[i])
+    .filter(d => d > 0);
+
+  return d3.median(diffs) || 1;
+}
+
+// -----------------------------
+// Color
+// -----------------------------
+
+function getFruitSuitabilityColor(d) {
+  const required = fruitThresholds[selectedFruit];
+  const gap = d.chill_days - required;
+
+  return suitabilityColor(gap);
+}
+
+// -----------------------------
 // Tooltip
 // -----------------------------
 
 function showTooltip(event, d) {
   const requiredDays = fruitThresholds[selectedFruit];
   const gap = d.chill_days - requiredDays;
-  const suitable = d.chill_days >= requiredDays ? "Suitable" : "Not enough chill";
+  const suitable = gap >= 0 ? "Suitable" : "Not enough chill";
 
   tooltip
     .style("opacity", 1)
@@ -236,14 +333,14 @@ function showTooltip(event, d) {
     .style("top", `${event.pageY + 12}px`)
     .html(`
       <strong>Climate Grid Cell</strong><br>
-      Lat: ${d.lat}<br>
-      Lon: ${d.lon}<br>
+      Lat: ${d.lat.toFixed(2)}<br>
+      Lon: ${d.lon.toFixed(2)}<br>
       Year: ${d.year}<br>
       Scenario: ${formatScenario(d.scenario)}<br>
-      Chill days: ${d.chill_days}<br>
-      Chill gap: ${gap >= 0 ? "+" : ""}${gap} days<br>
       Fruit: ${selectedFruit}<br>
+      Chill days: ${d.chill_days}<br>
       Required: ${requiredDays}<br>
+      Gap: ${gap >= 0 ? "+" : ""}${gap} days<br>
       <strong>${suitable}</strong>
     `);
 }
@@ -280,6 +377,16 @@ function updateSummary(filteredData) {
 // Helpers
 // -----------------------------
 
+function uniqueYears() {
+  return Array.from(new Set(climateData.map(d => d.year)))
+    .sort((a, b) => a - b);
+}
+
+function uniqueScenarios() {
+  return Array.from(new Set(climateData.map(d => d.scenario)))
+    .sort();
+}
+
 function formatScenario(scenario) {
   const labels = {
     historical: "Historical",
@@ -289,10 +396,4 @@ function formatScenario(scenario) {
   };
 
   return labels[scenario] ?? scenario;
-}
-
-function getFruitSuitabilityColor(d) {
-  const required = fruitThresholds[selectedFruit];
-  const gap = d.chill_days - required;
-  return suitabilityColor(gap);
 }

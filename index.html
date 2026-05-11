@@ -3,44 +3,49 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Winter Chill Fruit Suitability</title>
+
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-  <h1>Winter is Shrinking</h1>
+  <main>
+    <h1>Winter is Shrinking: How Climate Change Is Redrawing America's Fruit Belt</h1>
 
-  <p>
-    Explore how winter chill days change across the U.S. under different climate scenarios.
-  </p>
+    <p>
+      How do declining winter chill hours, due to climate change, threaten established fruit-growing (specifically those that depend on higher chill hours like peaches, plums, apples, and grapes) regions across the continental US, and how does aggressive emissions mitigation (SSP1-2.6) compare to a high-emissions future (SSP5-8.5) in determining where they can still thrive by 2100?
+    </p>
 
-  <section id="controls">
-    <label>
-      Fruit:
-      <select id="fruit-select"></select>
-    </label>
+    <section id="controls">
+      <label>
+        Fruit:
+        <select id="fruit-select"></select>
+      </label>
 
-    <label>
-      Scenario:
-      <select id="scenario-select"></select>
-    </label>
+      <label>
+        Scenario:
+        <select id="scenario-select"></select>
+      </label>
 
-    <label>
-      Year:
-      <input id="year-slider" type="range" />
-      <span id="year-label"></span>
-    </label>
-  </section>
+      <label>
+        Year:
+        <input id="year-slider" type="range" />
+        <span id="year-label"></span>
+      </label>
+    </section>
+    <section id="vis-layout">
+        <section id="chart-section">
+        <svg id="map" width="960" height="430" viewBox="0 0 960 430" preserveAspectRatio="xMidYMid meet"></svg>
+        </section>
 
-  <section id="chart-section">
-    <svg id="map" width="960" height="600"></svg>
-  </section>
-
-  <section id="details">
-    <h2>Current Selection</h2>
-    <p id="selection-summary"></p>
-  </section>
+        <section id="details">
+        <h2>Current Selection</h2>
+        <p id="selection-summary"></p>
+        </section>
+    </section>
+  </main>
 
   <div id="tooltip"></div>
 
