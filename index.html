@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Winter Chill Fruit Suitability</title>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+
+<body>
+  <h1>Winter is Shrinking</h1>
+
+  <p>
+    Explore how winter chill days change across the U.S. under different climate scenarios.
+  </p>
+
+  <section id="controls">
+    <label>
+      Fruit:
+      <select id="fruit-select"></select>
+    </label>
+
+    <label>
+      Scenario:
+      <select id="scenario-select"></select>
+    </label>
+
+    <label>
+      Year:
+      <input id="year-slider" type="range" />
+      <span id="year-label"></span>
+    </label>
+  </section>
+
+  <section id="chart-section">
+    <svg id="map" width="960" height="600"></svg>
+  </section>
+
+  <section id="details">
+    <h2>Current Selection</h2>
+    <p id="selection-summary"></p>
+  </section>
+
+  <div id="tooltip"></div>
+
+  <script src="main.js"></script>
+</body>
+</html>
