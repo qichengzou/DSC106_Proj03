@@ -34,9 +34,9 @@ const projection = d3.geoAlbersUsa()
 
 const path = d3.geoPath().projection(projection);
 
-const chillColor = d3.scaleSequential()
-  .domain([0, 100])
-  .interpolator(d3.interpolateYlGnBu);
+const suitabilityColor = d3.scaleDiverging()
+  .domain([-60, 0, 60])
+  .interpolator(d3.interpolateRdYlBu);
 
 // Main zoom group
 const g = svg.append("g");
@@ -203,7 +203,7 @@ function updateVisualization() {
       enter => enter.append("path")
         .attr("class", "climate-cell")
         .attr("d", (d, i) => voronoi.renderCell(i))
-        .attr("fill", d => chillColor(d.chill_days))
+        .attr("fill", d => getFruitSuitabilityColor(d))
         .attr("stroke", "none")
         .attr("opacity", 0.9)
         .on("mousemove", showTooltip)
@@ -213,7 +213,7 @@ function updateVisualization() {
         .transition()
         .duration(250)
         .attr("d", (d, i) => voronoi.renderCell(i))
-        .attr("fill", d => chillColor(d.chill_days)),
+        .attr("fill", d => getFruitSuitabilityColor(d)),
 
       exit => exit.remove()
     );
@@ -227,6 +227,7 @@ function updateVisualization() {
 
 function showTooltip(event, d) {
   const requiredDays = fruitThresholds[selectedFruit];
+  const gap = d.chill_days - requiredDays;
   const suitable = d.chill_days >= requiredDays ? "Suitable" : "Not enough chill";
 
   tooltip
@@ -240,6 +241,7 @@ function showTooltip(event, d) {
       Year: ${d.year}<br>
       Scenario: ${formatScenario(d.scenario)}<br>
       Chill days: ${d.chill_days}<br>
+      Chill gap: ${gap >= 0 ? "+" : ""}${gap} days<br>
       Fruit: ${selectedFruit}<br>
       Required: ${requiredDays}<br>
       <strong>${suitable}</strong>
@@ -287,4 +289,10 @@ function formatScenario(scenario) {
   };
 
   return labels[scenario] ?? scenario;
+}
+
+function getFruitSuitabilityColor(d) {
+  const required = fruitThresholds[selectedFruit];
+  const gap = d.chill_days - required;
+  return suitabilityColor(gap);
 }
