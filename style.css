@@ -181,3 +181,29 @@ input[type="range"] {
     width: 100%;
   }
 }
+
+#play-btn {
+  padding: 0.35rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #bbb;
+  background: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+#play-btn:hover {
+  background: #f0f0f0;
+}
+
+#play-btn.playing {
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+#play-btn.playing:hover {
+  background: #1558b0;
+}
