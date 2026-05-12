@@ -123,6 +123,7 @@ Promise.all([
   drawStateOutlines();
   initializeControls();
   initializeYearSlider();
+  renderLegend();
   updateVisualization();
 }).catch(error => {
   console.error("Data loading failed:", error);
@@ -327,6 +328,81 @@ function updateVisualization() {
     );
 
   updateSummary(filteredData);
+  updateLegendCaption();
+}
+
+// -----------------------------
+// Legend
+// -----------------------------
+
+function renderLegend() {
+  const legendSvg = d3.select("#legend-svg");
+  if (legendSvg.empty()) return;
+  legendSvg.selectAll("*").remove();
+
+  const vbWidth = 280;
+  const vbHeight = 60;
+  const margin = { left: 14, right: 14, top: 6, bottom: 22 };
+  const barWidth = vbWidth - margin.left - margin.right;
+  const barHeight = 14;
+
+  const defs = legendSvg.append("defs");
+  const gradient = defs.append("linearGradient")
+    .attr("id", "legend-gradient")
+    .attr("x1", "0%").attr("x2", "100%")
+    .attr("y1", "0%").attr("y2", "0%");
+
+  const stopCount = 11;
+  const [dMin, , dMax] = suitabilityColor.domain();
+  d3.range(stopCount).forEach(i => {
+    const t = i / (stopCount - 1);
+    const value = dMin + t * (dMax - dMin);
+    gradient.append("stop")
+      .attr("offset", `${t * 100}%`)
+      .attr("stop-color", suitabilityColor(value));
+  });
+
+  legendSvg.append("rect")
+    .attr("x", margin.left)
+    .attr("y", margin.top)
+    .attr("width", barWidth)
+    .attr("height", barHeight)
+    .attr("fill", "url(#legend-gradient)")
+    .attr("stroke", "#bbb")
+    .attr("stroke-width", 0.5);
+
+  const x = d3.scaleLinear()
+    .domain([dMin, dMax])
+    .range([margin.left, margin.left + barWidth]);
+
+  const ticks = [-60, -30, 0, 30, 60];
+  const axis = legendSvg.append("g").attr("class", "legend-axis");
+
+  ticks.forEach(t => {
+    const xt = x(t);
+    axis.append("line")
+      .attr("x1", xt).attr("x2", xt)
+      .attr("y1", margin.top + barHeight)
+      .attr("y2", margin.top + barHeight + 4)
+      .attr("stroke", "#444")
+      .attr("stroke-width", 1);
+
+    axis.append("text")
+      .attr("x", xt)
+      .attr("y", margin.top + barHeight + 14)
+      .attr("text-anchor", "middle")
+      .attr("font-size", 10)
+      .attr("font-weight", t === 0 ? 700 : 400)
+      .attr("fill", "#222")
+      .text(t > 0 ? `+${t}` : `${t}`);
+  });
+}
+
+function updateLegendCaption() {
+  const req = fruitThresholds[selectedFruit];
+  d3.select("#legend-caption").html(
+    `Gap vs. <strong>${selectedFruit}</strong>'s ${req}-day chill requirement`
+  );
 }
 
 // -----------------------------

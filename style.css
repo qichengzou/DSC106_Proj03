@@ -99,6 +99,16 @@ input[type="range"] {
 }
 
 /* -----------------------------
+   Sidebar (right column)
+----------------------------- */
+
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* -----------------------------
    Current selection panel
 ----------------------------- */
 
@@ -116,6 +126,40 @@ input[type="range"] {
 
 #selection-summary {
   margin: 0;
+}
+
+/* -----------------------------
+   Legend
+----------------------------- */
+
+#legend {
+  background: white;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.08);
+}
+
+#legend h2 {
+  margin: 0 0 0.5rem;
+}
+
+#legend-caption {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+#legend-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.legend-help {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  color: #666;
+  line-height: 1.3;
 }
 
 /* -----------------------------

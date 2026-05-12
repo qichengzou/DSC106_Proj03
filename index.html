@@ -42,10 +42,23 @@
         <svg id="map" width="960" height="430" viewBox="0 0 960 430" preserveAspectRatio="xMidYMid meet"></svg>
         </section>
 
-        <section id="details">
-        <h2>Current Selection</h2>
-        <p id="selection-summary"></p>
-        </section>
+        <aside id="sidebar">
+          <section id="details">
+          <h2>Current Selection</h2>
+          <p id="selection-summary"></p>
+          </section>
+
+          <section id="legend">
+            <h2>Chill-Day Gap</h2>
+            <p id="legend-caption"></p>
+            <svg id="legend-svg" width="280" height="60"
+                 viewBox="0 0 280 60" preserveAspectRatio="xMidYMid meet"
+                 aria-label="Diverging color scale legend"></svg>
+            <p class="legend-help">
+              Red = below requirement &middot; Yellow = near threshold &middot; Blue = enough chill days
+            </p>
+          </section>
+        </aside>
     </section>
   </main>
 
