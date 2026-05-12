@@ -46,6 +46,27 @@ const suitabilityColor = d3.scaleDiverging()
   .interpolator(d3.interpolateRdYlBu)
   .clamp(true);
 
+const fruitTopStates = {
+  Apple:  ["Washington", "New York",  "Michigan"],
+  Cherry: ["Washington", "California","Michigan"],
+  Pear:   ["Washington", "Oregon",    "California"],
+  Plum:   ["California", "Michigan",  "Oregon"],
+};
+const ALL_CHART_STATES = ["Washington", "New York", "Michigan", "California", "Oregon"];
+const CHART_SCENARIOS  = ["ssp126", "ssp245", "ssp585"];
+const scenarioColors   = { ssp126: "#2196f3", ssp245: "#ff9800", ssp585: "#f44336" };
+
+const CHART_W = 300, CHART_H = 190;
+const CHART_M = { top: 24, right: 18, bottom: 38, left: 46 };
+const CHART_IW = CHART_W - CHART_M.left - CHART_M.right;
+const CHART_IH = CHART_H - CHART_M.top - CHART_M.bottom;
+
+let stateAssignmentMap = new Map();
+let stateChartData = {};
+let lastChartFruit = null;
+let lastChartScenario = null;
+let xChartScale;
+
 // -----------------------------
 // SVG layers
 // -----------------------------
@@ -112,6 +133,9 @@ Promise.all([
     Number.isFinite(d.chill_days) &&
     d.scenario
   );
+
+  buildStateAssignments();
+  buildStateChartData();
 
   setupRectangularProjection();
 
@@ -294,6 +318,12 @@ function updateVisualization() {
   if (filteredData.length === 0) {
     climateLayer.selectAll(".climate-cell").remove();
     updateSummary(filteredData);
+    if (selectedFruit !== lastChartFruit || selectedScenario !== lastChartScenario) {
+      drawStateCharts(selectedFruit, selectedScenario);
+      lastChartFruit = selectedFruit;
+      lastChartScenario = selectedScenario;
+    }
+    updateYearMarker();
     return;
   }
 
@@ -327,6 +357,13 @@ function updateVisualization() {
     );
 
   updateSummary(filteredData);
+
+  if (selectedFruit !== lastChartFruit || selectedScenario !== lastChartScenario) {
+    drawStateCharts(selectedFruit, selectedScenario);
+    lastChartFruit = selectedFruit;
+    lastChartScenario = selectedScenario;
+  }
+  updateYearMarker();
 }
 
 // -----------------------------
@@ -454,4 +491,192 @@ function formatScenario(scenario) {
   };
 
   return labels[scenario] ?? scenario;
+}
+
+// -----------------------------
+// Point-in-polygon (ray casting)
+// -----------------------------
+
+function rayCast(lon, lat, ring) {
+  let inside = false;
+  const n = ring.length;
+  let [px, py] = ring[n - 1];
+  for (let i = 0; i < n; i++) {
+    const [cx, cy] = ring[i];
+    if ((cy > lat) !== (py > lat) &&
+        lon < ((px - cx) * (lat - cy)) / (py - cy) + cx) {
+      inside = !inside;
+    }
+    [px, py] = [cx, cy];
+  }
+  return inside;
+}
+
+function pointInFeature(lon, lat, feature) {
+  const { type, coordinates } = feature.geometry;
+  if (type === "Polygon") {
+    if (!rayCast(lon, lat, coordinates[0])) return false;
+    for (let h = 1; h < coordinates.length; h++) {
+      if (rayCast(lon, lat, coordinates[h])) return false;
+    }
+    return true;
+  }
+  if (type === "MultiPolygon") {
+    for (const poly of coordinates) {
+      if (rayCast(lon, lat, poly[0])) return true;
+    }
+  }
+  return false;
+}
+
+// -----------------------------
+// State assignment (PIP + coastal snap)
+// -----------------------------
+
+function minDistToFeature(lon, lat, feature) {
+  const rings = feature.geometry.type === "Polygon"
+    ? feature.geometry.coordinates
+    : feature.geometry.coordinates.flat();
+  let min = Infinity;
+  for (const ring of rings) {
+    for (const [vlon, vlat] of ring) {
+      const d = (lon - vlon) ** 2 + (lat - vlat) ** 2;
+      if (d < min) min = d;
+    }
+  }
+  return Math.sqrt(min);
+}
+
+function buildStateAssignments() {
+  const targets = states.filter(f => ALL_CHART_STATES.includes(f.properties.name));
+  const pairs = new Set(climateData.map(d => `${d.lat}_${d.lon}`));
+  const unassigned = [];
+
+  for (const key of pairs) {
+    const [lat, lon] = key.split("_").map(Number);
+    let found = false;
+    for (const feature of targets) {
+      if (pointInFeature(lon, lat, feature)) {
+        stateAssignmentMap.set(key, feature.properties.name);
+        found = true;
+        break;
+      }
+    }
+    if (!found) unassigned.push({ key, lat, lon });
+  }
+
+  // Snap coastal/offshore cells to nearest state boundary within one grid cell diagonal
+  const SNAP_DEG = 3;
+  for (const { key, lat, lon } of unassigned) {
+    let nearest = null, nearestDist = Infinity;
+    for (const feature of targets) {
+      const d = minDistToFeature(lon, lat, feature);
+      if (d < nearestDist) { nearestDist = d; nearest = feature.properties.name; }
+    }
+    if (nearestDist <= SNAP_DEG) stateAssignmentMap.set(key, nearest);
+  }
+}
+
+// -----------------------------
+// Pre-aggregate chart data
+// -----------------------------
+
+function buildStateChartData() {
+  for (const fruit of Object.keys(fruitThresholds)) {
+    stateChartData[fruit] = {};
+    for (const state of ALL_CHART_STATES) {
+      stateChartData[fruit][state] = {};
+      for (const sc of CHART_SCENARIOS) {
+        stateChartData[fruit][state][sc] = {};
+      }
+    }
+  }
+
+  for (const d of climateData) {
+    const state = stateAssignmentMap.get(`${d.lat}_${d.lon}`);
+    if (!state || !CHART_SCENARIOS.includes(d.scenario)) continue;
+    for (const fruit of Object.keys(fruitThresholds)) {
+      const bucket = stateChartData[fruit][state][d.scenario];
+      if (!bucket[d.year]) bucket[d.year] = { suit: 0, total: 0 };
+      bucket[d.year].total++;
+      if (d.chill_days >= fruitThresholds[fruit]) bucket[d.year].suit++;
+    }
+  }
+
+  for (const fruit of Object.keys(fruitThresholds)) {
+    for (const state of ALL_CHART_STATES) {
+      for (const sc of CHART_SCENARIOS) {
+        const bucket = stateChartData[fruit][state][sc];
+        stateChartData[fruit][state][sc] = Object.entries(bucket)
+          .map(([yr, { suit, total }]) => ({
+            year: +yr,
+            pct: total > 0 ? (suit / total) * 100 : 0
+          }))
+          .sort((a, b) => a.year - b.year);
+      }
+    }
+  }
+}
+
+// -----------------------------
+// State line charts
+// -----------------------------
+
+function drawStateCharts(fruit, scenario) {
+  const container = d3.select("#state-charts");
+  container.html("");
+
+  xChartScale = d3.scaleLinear().domain([2020, 2100]).range([0, CHART_IW]);
+  const yCS = d3.scaleLinear().domain([0, 100]).range([CHART_IH, 0]);
+  const lineGen = d3.line()
+    .x(d => xChartScale(d.year))
+    .y(d => yCS(d.pct))
+    .curve(d3.curveMonotoneX);
+
+  for (const stateName of fruitTopStates[fruit]) {
+    const card = container.append("div").attr("class", "state-chart-card");
+    card.append("h3").attr("class", "chart-title").text(stateName);
+
+    const svg = card.append("svg")
+      .attr("viewBox", `0 0 ${CHART_W} ${CHART_H}`)
+      .attr("class", "state-chart-svg");
+
+    const g = svg.append("g")
+      .attr("transform", `translate(${CHART_M.left},${CHART_M.top})`);
+
+    g.append("g")
+      .attr("transform", `translate(0,${CHART_IH})`)
+      .call(d3.axisBottom(xChartScale).ticks(5).tickFormat(d3.format("d")));
+
+    g.append("g")
+      .call(d3.axisLeft(yCS).ticks(5).tickFormat(d => d + "%"));
+
+    g.append("text").attr("class", "axis-label")
+      .attr("x", CHART_IW / 2).attr("y", CHART_IH + 32)
+      .attr("text-anchor", "middle").text("Year");
+
+    g.append("text").attr("class", "axis-label")
+      .attr("transform", "rotate(-90)")
+      .attr("x", -CHART_IH / 2).attr("y", -38)
+      .attr("text-anchor", "middle").text("% Suitable");
+
+    g.append("path")
+      .datum(stateChartData[fruit][stateName][scenario])
+      .attr("class", "scenario-line")
+      .attr("d", lineGen)
+      .attr("stroke", scenarioColors[scenario])
+      .attr("stroke-width", 2.5)
+      .attr("fill", "none");
+
+    g.append("line").attr("class", "year-marker")
+      .attr("x1", xChartScale(selectedYear)).attr("x2", xChartScale(selectedYear))
+      .attr("y1", 0).attr("y2", CHART_IH)
+      .attr("stroke", "#333").attr("stroke-width", 1.5).attr("stroke-dasharray", "4,3");
+  }
+}
+
+function updateYearMarker() {
+  if (!xChartScale) return;
+  const x = xChartScale(selectedYear);
+  d3.selectAll(".year-marker").attr("x1", x).attr("x2", x);
 }

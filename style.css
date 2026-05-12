@@ -207,3 +207,65 @@ input[type="range"] {
 #play-btn.playing:hover {
   background: #1558b0;
 }
+
+/* -------------------------
+   State line charts
+------------------------- */
+
+#state-charts-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.08);
+  margin-bottom: 1.5rem;
+}
+
+#state-charts-heading {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+#state-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.state-chart-card {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.chart-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.state-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.scenario-line {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.year-marker {
+  pointer-events: none;
+}
+
+.axis-label {
+  font-size: 11px;
+  fill: #555;
+}
+
+@media (max-width: 700px) {
+  #state-charts {
+    flex-direction: column;
+  }
+}
