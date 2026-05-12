@@ -55,9 +55,10 @@ const fruitTopStates = {
 const ALL_CHART_STATES = ["Washington", "New York", "Michigan", "California", "Oregon"];
 const CHART_SCENARIOS  = ["ssp126", "ssp245", "ssp585"];
 const scenarioColors   = { ssp126: "#2196f3", ssp245: "#ff9800", ssp585: "#f44336" };
+const stateLineColors  = ["#e74c3c", "#2980b9", "#f1c40f"];
 
-const CHART_W = 300, CHART_H = 190;
-const CHART_M = { top: 24, right: 18, bottom: 38, left: 46 };
+const CHART_W = 860, CHART_H = 360;
+const CHART_M = { top: 40, right: 180, bottom: 56, left: 66 };
 const CHART_IW = CHART_W - CHART_M.left - CHART_M.right;
 const CHART_IH = CHART_H - CHART_M.top - CHART_M.bottom;
 
@@ -633,46 +634,56 @@ function drawStateCharts(fruit, scenario) {
     .y(d => yCS(d.pct))
     .curve(d3.curveMonotoneX);
 
-  for (const stateName of fruitTopStates[fruit]) {
-    const card = container.append("div").attr("class", "state-chart-card");
-    card.append("h3").attr("class", "chart-title").text(stateName);
+  const svg = container.append("svg")
+    .attr("viewBox", `0 0 ${CHART_W} ${CHART_H}`)
+    .attr("class", "state-chart-svg");
 
-    const svg = card.append("svg")
-      .attr("viewBox", `0 0 ${CHART_W} ${CHART_H}`)
-      .attr("class", "state-chart-svg");
+  const g = svg.append("g")
+    .attr("transform", `translate(${CHART_M.left},${CHART_M.top})`);
 
-    const g = svg.append("g")
-      .attr("transform", `translate(${CHART_M.left},${CHART_M.top})`);
+  g.append("g")
+    .attr("transform", `translate(0,${CHART_IH})`)
+    .call(d3.axisBottom(xChartScale).ticks(8).tickFormat(d3.format("d")));
+  g.append("g")
+    .call(d3.axisLeft(yCS).ticks(5).tickFormat(d => d + "%"));
 
-    g.append("g")
-      .attr("transform", `translate(0,${CHART_IH})`)
-      .call(d3.axisBottom(xChartScale).ticks(5).tickFormat(d3.format("d")));
+  g.append("text").attr("class", "axis-label")
+    .attr("x", CHART_IW / 2).attr("y", CHART_IH + 36)
+    .attr("text-anchor", "middle").text("Year");
+  g.append("text").attr("class", "axis-label")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -CHART_IH / 2).attr("y", -42)
+    .attr("text-anchor", "middle").text("% Suitable Land");
 
-    g.append("g")
-      .call(d3.axisLeft(yCS).ticks(5).tickFormat(d => d + "%"));
-
-    g.append("text").attr("class", "axis-label")
-      .attr("x", CHART_IW / 2).attr("y", CHART_IH + 32)
-      .attr("text-anchor", "middle").text("Year");
-
-    g.append("text").attr("class", "axis-label")
-      .attr("transform", "rotate(-90)")
-      .attr("x", -CHART_IH / 2).attr("y", -38)
-      .attr("text-anchor", "middle").text("% Suitable");
-
+  const chartStates = fruitTopStates[fruit];
+  chartStates.forEach((stateName, i) => {
     g.append("path")
       .datum(stateChartData[fruit][stateName][scenario])
       .attr("class", "scenario-line")
       .attr("d", lineGen)
-      .attr("stroke", scenarioColors[scenario])
+      .attr("stroke", stateLineColors[i])
       .attr("stroke-width", 2.5)
       .attr("fill", "none");
+  });
 
-    g.append("line").attr("class", "year-marker")
-      .attr("x1", xChartScale(selectedYear)).attr("x2", xChartScale(selectedYear))
-      .attr("y1", 0).attr("y2", CHART_IH)
-      .attr("stroke", "#333").attr("stroke-width", 1.5).attr("stroke-dasharray", "4,3");
-  }
+  // Legend inside right margin
+  const legendX = CHART_IW + 12;
+  chartStates.forEach((stateName, i) => {
+    const ly = i * 22;
+    g.append("line")
+      .attr("x1", legendX).attr("x2", legendX + 20)
+      .attr("y1", ly + 6).attr("y2", ly + 6)
+      .attr("stroke", stateLineColors[i]).attr("stroke-width", 2.5);
+    g.append("text")
+      .attr("x", legendX + 26).attr("y", ly + 10)
+      .attr("font-size", "12px").attr("fill", "#333")
+      .text(stateName);
+  });
+
+  g.append("line").attr("class", "year-marker")
+    .attr("x1", xChartScale(selectedYear)).attr("x2", xChartScale(selectedYear))
+    .attr("y1", 0).attr("y2", CHART_IH)
+    .attr("stroke", "#555").attr("stroke-width", 1.5).attr("stroke-dasharray", "4,3");
 }
 
 function updateYearMarker() {
