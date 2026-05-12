@@ -38,6 +38,9 @@ let xScale;
 let yScale;
 let path;
 
+let isPlaying = false;
+let playInterval = null;
+
 const suitabilityColor = d3.scaleDiverging()
   .domain([-60, 0, 60])
   .interpolator(d3.interpolateRdYlBu)
@@ -234,12 +237,48 @@ function initializeYearSlider() {
     .attr("step", 1)
     .attr("value", selectedYear)
     .on("input", function () {
+      if (isPlaying) togglePlay();
       selectedYear = +this.value;
       d3.select("#year-label").text(selectedYear);
       updateVisualization();
     });
 
   d3.select("#year-label").text(selectedYear);
+  
+}
+
+function togglePlay() {
+  const years = uniqueYears();
+  const btn = document.getElementById("play-btn");
+
+  if (isPlaying) {
+    clearInterval(playInterval);
+    playInterval = null;
+    isPlaying = false;
+    btn.textContent = "▶ Play";
+    btn.classList.remove("playing");
+  } else {
+    isPlaying = true;
+    btn.textContent = "⏸ Pause";
+    btn.classList.add("playing");
+
+    playInterval = setInterval(() => {
+      const currentIndex = years.indexOf(selectedYear);
+      const nextIndex = currentIndex + 1;
+
+      if (nextIndex >= years.length) {
+        // Stop at the end
+        togglePlay();
+        return;
+      }
+
+      selectedYear = years[nextIndex];
+      const slider = document.getElementById("year-slider");
+      slider.value = selectedYear;
+      d3.select("#year-label").text(selectedYear);
+      updateVisualization();
+    }, 1000);
+  }
 }
 
 // -----------------------------
