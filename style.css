@@ -175,12 +175,6 @@ input[type="range"] {
   stroke-width: 1px;
 }
 
-.climate-cell.production-cell {
-  stroke: #111;
-  stroke-width: 2;
-  pointer-events: stroke;
-}
-
 #production-caption {
   margin: 0 0 0.5rem;
   font-size: 0.85rem;

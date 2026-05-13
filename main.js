@@ -64,6 +64,11 @@ const climateLayer = g.append("g")
 const stateOutlineLayer = g.append("g")
   .attr("class", "state-outline-layer");
 
+const productionOutlineLayer = g.append("g")
+  .attr("class", "production-outline-layer")
+  .attr("clip-path", "url(#us-clip)")
+  .attr("pointer-events", "none");
+
 // Zoom: users can zoom in, but not zoom out beyond full map.
 const zoom = d3.zoom()
   .scaleExtent([1, 8])
@@ -844,18 +849,41 @@ function updateYearMarker() {
 function updateProductionHighlights() {
   if (!fruitRegions) return;
   const subs = fruitRegions[selectedFruit] || {};
-  const set = new Set();
+  const cells = [];
   for (const sub of Object.keys(subs)) {
-    for (const [lat, lon] of subs[sub]) {
-      set.add(cellKey(lat, lon));
-    }
+    for (const [lat, lon] of subs[sub]) cells.push({ lat, lon });
   }
-  climateLayer.selectAll(".climate-cell")
-    .classed("production-cell", d => set.has(cellKey(d.lat, d.lon)));
+
+  const latStep = getMedianSpacing(climateData.map(d => d.lat));
+  const lonStep = getMedianSpacing(climateData.map(d => d.lon));
+
+  productionOutlineLayer.selectAll(".production-outline")
+    .data(cells, d => `${d.lat},${d.lon}`)
+    .join(
+      enter => enter.append("path")
+        .attr("class", "production-outline")
+        .attr("d", d => makeOutlinePath(d, latStep, lonStep))
+        .attr("fill", "none")
+        .attr("stroke", "#111")
+        .attr("stroke-width", 2)
+        .attr("stroke-linejoin", "miter"),
+      update => update.attr("d", d => makeOutlinePath(d, latStep, lonStep)),
+      exit => exit.remove()
+    );
 
   d3.select("#production-caption").text(
     `Outlined cells = top US ${selectedFruit} production regions.`
   );
+}
+
+function makeOutlinePath(d, latStep, lonStep) {
+  const halfLat = latStep / 2;
+  const halfLon = lonStep / 2;
+  const x0 = xScale(d.lon - halfLon);
+  const x1 = xScale(d.lon + halfLon);
+  const y0 = yScale(d.lat + halfLat);
+  const y1 = yScale(d.lat - halfLat);
+  return `M ${x0},${y0} L ${x1},${y0} L ${x1},${y1} L ${x0},${y1} Z`;
 }
 
 // -----------------------------
