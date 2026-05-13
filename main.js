@@ -69,6 +69,19 @@ const productionOutlineLayer = g.append("g")
   .attr("clip-path", "url(#us-clip)")
   .attr("pointer-events", "none");
 
+const regionLabelLayer = g.append("g")
+  .attr("class", "region-label-layer")
+  .attr("pointer-events", "none");
+
+const REGION_LABELS = [
+  { name: "Yakima Valley",         lat: 46.60, lon: -120.51, anchor: "start", fruits: ["Apple", "Cherry", "Pear"] },
+  { name: "Lake Ontario shore",    lat: 43.22, lon:  -77.20, anchor: "start", fruits: ["Apple"] },
+  { name: "Michigan's Fruit Belt", lat: 43.20, lon:  -86.20, anchor: "end",   fruits: ["Apple", "Cherry"] },
+  { name: "San Joaquin Valley",    lat: 36.62, lon: -120.18, anchor: "start", fruits: ["Cherry", "Plum"] },
+  { name: "Columbia Gorge",        lat: 45.71, lon: -121.52, anchor: "end",   fruits: ["Pear"] },
+  { name: "Sacramento Valley",     lat: 39.50, lon: -121.90, anchor: "end",   fruits: ["Pear", "Plum"] }
+];
+
 // Zoom: users can zoom in, but not zoom out beyond full map.
 const zoom = d3.zoom()
   .scaleExtent([1, 8])
@@ -138,6 +151,7 @@ Promise.all([
   renderLegend();
   updateVisualization();
   updateProductionHighlights();
+  updateRegionLabels();
   renderImpactChart(selectedFruit);
 }).catch(error => {
   console.error("Data loading failed:", error);
@@ -232,6 +246,7 @@ function initializeControls() {
       selectedFruit = this.value;
       updateVisualization();
       updateProductionHighlights();
+      updateRegionLabels();
       renderImpactChart(selectedFruit);
     });
 
@@ -296,7 +311,7 @@ function togglePlay() {
       d3.select("#year-label").text(selectedYear);
       updateVisualization();
       updateYearMarker();
-    }, 1000);
+    }, 250);
   }
 }
 
@@ -678,8 +693,10 @@ function renderImpactChart(fruit) {
   extent = Math.ceil(extent / 5) * 5;
   const yDomain = [-extent, extent];
 
-  // Header (set once, fruit-agnostic) — keep neutral so subplot titles carry the per-fruit naming
-  d3.select("#impact-chart-title").text("Production-region chill-day change");
+  d3.select("#impact-chart-title").text("Does emission mitigation actually save chill days in production regions?");
+  d3.select("#impact-chart-subtitle").text(
+    "Above zero = scenario keeps more chill than the current path; below zero = loses more."
+  );
 
   // Legend
   const legendDiv = d3.select("#impact-chart-legend");
@@ -874,6 +891,21 @@ function updateProductionHighlights() {
   d3.select("#production-caption").text(
     `Outlined cells = top US ${selectedFruit} production regions.`
   );
+}
+
+function updateRegionLabels() {
+  const data = REGION_LABELS.filter(r => r.fruits.includes(selectedFruit));
+  const sel = regionLabelLayer.selectAll(".region-label").data(data, d => d.name);
+  sel.exit().remove();
+  const entered = sel.enter().append("g").attr("class", "region-label");
+  entered.append("circle").attr("r", 3.5).attr("fill", "#111");
+  entered.append("text").attr("y", 4);
+  const all = entered.merge(sel);
+  all.attr("transform", d => `translate(${xScale(d.lon)}, ${yScale(d.lat)})`);
+  all.select("text")
+    .attr("x", d => d.anchor === "start" ? 7 : -7)
+    .attr("text-anchor", d => d.anchor)
+    .text(d => d.name);
 }
 
 function makeOutlinePath(d, latStep, lonStep) {

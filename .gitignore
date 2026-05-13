@@ -1,3 +1,5 @@
 .vscode
 .venv
 PLAN.md
+scripts/verify_did.js
+scripts/spotcheck_insight.js

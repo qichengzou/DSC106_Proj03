@@ -181,6 +181,23 @@ input[type="range"] {
   color: #444;
 }
 
+.region-label text {
+  paint-order: stroke;
+  stroke: white;
+  stroke-width: 3.5;
+  stroke-linejoin: round;
+  fill: #111;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
+.region-label circle {
+  stroke: white;
+  stroke-width: 1;
+}
+
 /* -----------------------------
    Impact chart
 ----------------------------- */
@@ -194,8 +211,14 @@ input[type="range"] {
 }
 
 #impact-chart-section h2 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.25rem;
   font-size: 1.2rem;
+}
+
+#impact-chart-subtitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: #555;
 }
 
 #impact-chart-legend {
