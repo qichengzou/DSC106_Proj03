@@ -42,6 +42,15 @@
   <h3>Interactive Controls and Details-on-Demand</h3>
   <p>We combined a fruit selector, scenario selector, year slider with a play button, and hover tooltips to support exploration from multiple angles. The fruit selector changes the chill-day requirement, the scenario selector lets users compare different climate futures, and the time slider/play button shows how suitability changes over the century. The tooltip provides details-on-demand for individual grid cells, so users can inspect exact chill days, requirement gaps, and suitability without overcrowding the map.</p>
 
+  <h3>Production-Region Impact Chart</h3>
+  <p>The map shows where chill is changing, but on its own, it doesn't tell you what that means for actual fruit-growing regions. So we added a chart below the map that shows chill-day trajectories for the top US production regions of the selected fruit, with one line per emissions scenario.</p>
+  <p>For the y-axis, we picked "change relative to SSP2-4.5" rather than raw chill days. This way, SSP2-4.5 (the current trajectory) sits on the zero line; the SSP1-2.6 line shows what aggressive mitigation buys; and the SSP5-8.5 line shows what inaction costs. We chose chill-day change relative to the current trajectory because the relevant question is not "how much chill is lost" but "how much chill does mitigation save versus inaction.&rdquo;</p>
+  <p>The exact metric is a difference-in-differences: for each scenario, we compute the change from that scenario's 2020s decadal mean, then subtract the corresponding change under SSP2-4.5. We also smooth each line with a 10-year rolling average so year-to-year noise doesn't drown out the long-term signal.</p>
+  <p>Apple and Cherry are grown in two very different climate regions: Pacific-coastal (WA, OR, CA) and Continental-interior (NY, MI, PA, VA, UT). These regions respond differently to warming. Averaging them together would smear the signal, and dropping the Continental cells would hide about 40% of US apple acreage and the entire US tart-cherry industry. Therefore, we show two stacked subplots with a shared y-axis for Apple and Cherry, and one subplot for Pear and Plum, which are almost entirely Pacific-coastal.</p>
+
+  <h3>Map Annotations for Production Regions</h3>
+  <p>The cells that map to the top US fruit-growing regions are outlined in black so users can see at a glance which cells the chart below summarizes. We added small dots with place names (Yakima Valley, Michigan's Fruit Belt, San Joaquin Valley, etc.) so the outlines have geographic context. Switching fruits rotates which labels appear, preventing the map from getting crowded.</p>
+
   <hr>
 
   <h2>Development Process</h2>
@@ -51,7 +60,7 @@
   <ul>
     <li><strong>Qicheng Zou:</strong> Processed and generated chill day data; built the D3 map over US map; implemented core interactions, including zoom, tooltip, fruit selector, scenario selector, and year slider.</li>
     <li><strong>Ani Boppana:</strong> Did initial research to fine-tune the research topic and created the year play/pause functionality and integrated the write-up into the website.</li>
-    <li><strong>Aaron Marasco:</strong> [TODO]</li>
+    <li><strong>Aaron Marasco:</strong> Designed and built the production-region impact chart and its underlying county-to-grid-cell pipeline; added the production-cell outlines and annotations on the map; built the diverging-color legend.</li>
     <li><strong>Nate Nero:</strong> Created prototype combined line chart showing percentage of suitable land for selected fruit type.</li>
   </ul>
 
@@ -64,11 +73,15 @@
   <h3>Interactive Controls and Tooltip Design <em>(~2 person-hours)</em></h3>
   <p>We added the fruit selector, scenario selector, year slider, play button, hover tooltip, and current selection card. Once the data structure and map rendering were stable, these interactions were easier to implement, but we still had to make sure each interaction meaningfully changed what users saw.</p>
 
-  <h3>Color Encoding and Legend Design <em>(~[TODO] person-hours)</em></h3>
-  <p>We decided to color the map by the gap between actual chill days and the selected fruit's chill requirement, rather than raw chill days. This made the fruit selector more meaningful because the map changes depending on which fruit is selected.</p>
+  <h3>Color Encoding and Legend Design <em>(~2 person-hours)</em></h3>
+  <p>We decided to color the map based on the gap between actual chill days and the selected fruit's chill requirement, rather than the raw number of chill days. This made the fruit selector more meaningful because the map changes based on the selected fruit.</p>
+  <p>The legend is a horizontal gradient bar with tick marks at -60, -30, 0, +30, and +60 days. The caption below updates to the selected fruit (for example, "Gap vs. Apple's 60-day chill requirement"), so it always explains what the colors mean.</p>
 
-  <h3>Impact Chart by Production Region <em>(~[TODO] person-hours)</em></h3>
-  <p>We added a chart that updates when the user selects a fruit, showing chill-day changes over time for top U.S. production regions across the different climate scenarios, using SSP2-4.5 as a baseline reference. This gives users a quick summary of which regions are most favorable without requiring them to inspect every grid cell on the map.</p>
+  <h3>Impact Chart by Production Region <em>(~6 person-hours)</em></h3>
+  <p>Below the map, we added a chart that tracks chill-day change over time across the top U.S. growing regions for the selected fruit, with one line per emissions scenario and SSP2-4.5 as the reference. It gives users a regional-level summary so they can compare scenarios without scanning every grid cell on the map.</p>
+  <p>Designing the metric was where most of the time went. Our first version plotted raw chill-day counts averaged across each region, which was honest but visually flat because high and low-emissions scenarios tracked each other closely. We then tried plotting each scenario as a change from its own 2020s baseline, which exposed the long-term divergence but did not make scenarios easy to compare directly (the reader had to mentally subtract one line from another). We landed on a difference of differences: for each scenario, we anchor to its own 2020s decadal mean, then subtract the SSP2-4.5 trajectory at every year. This puts SSP2-4.5 exactly on zero, so the SSP1-2.6 line directly answers "how much chill does aggressive mitigation save?" and SSP5-8.5 directly answers "how much does inaction cost?" relative to the current path.</p>
+  <p>We picked 54 top U.S. fruit-producing counties from USDA NASS data and wrote a small script that reads each county's center point, finds the nearest CMIP6 grid cell, and outputs a JSON file mapping each fruit to its sub-region and a list of cells. Those cell lists feed both the outlined cells on the map and the lines on the chart, so the chart is always summarizing exactly the cells the user can see highlighted.</p>
+  <p>We noticed that apple and cherry are grown in two very different climate areas: Pacific-coastal (WA, OR, CA) and Continental-interior (NY, MI, PA, UT). In high-emissions scenarios, Pacific cells lose chill, but many Continental cells stay the same or even gain chill, which matches the known Eastern US 'warming hole.' If we averaged these groups together, the signal would disappear. To solve this, we tagged each county by sub-region in the source CSV, and the chart shows Pacific and Continental as two stacked subplots with a shared y-axis for Apple and Cherry. Pear and Plum are mostly grown in Pacific climates, so they have one subplot.</p>
 
 </div>
     </div>
