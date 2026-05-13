@@ -29,6 +29,8 @@ const fruitThresholds = {
 
 let climateData = [];
 let states = [];
+let fruitRegions = null;
+let didSeries = null;
 
 let selectedFruit = "Apple";
 let selectedScenario = null;
@@ -93,8 +95,9 @@ Promise.all([
       scenario: d.scenario,
       chill_days: +d.chill_days
     };
-  })
-]).then(([statesGeoJSON, data]) => {
+  }),
+  d3.json("data/fruit_regions.json")
+]).then(([statesGeoJSON, data, regions]) => {
   const excludedStates = new Set([
     "Alaska",
     "Hawaii",
@@ -113,6 +116,8 @@ Promise.all([
     d.scenario
   );
 
+  fruitRegions = regions;
+
   setupRectangularProjection();
 
   console.log("Loaded climate rows:", climateData.length);
@@ -120,11 +125,15 @@ Promise.all([
   console.log("Years:", uniqueYears());
   console.log("Scenarios:", uniqueScenarios());
 
+  precomputeDIDSeries();
+
   drawStateOutlines();
   initializeControls();
   initializeYearSlider();
   renderLegend();
   updateVisualization();
+  updateProductionHighlights();
+  renderImpactChart(selectedFruit);
 }).catch(error => {
   console.error("Data loading failed:", error);
 });
@@ -217,6 +226,8 @@ function initializeControls() {
     .on("change", function () {
       selectedFruit = this.value;
       updateVisualization();
+      updateProductionHighlights();
+      renderImpactChart(selectedFruit);
     });
 
   d3.select("#scenario-select")
@@ -242,6 +253,7 @@ function initializeYearSlider() {
       selectedYear = +this.value;
       d3.select("#year-label").text(selectedYear);
       updateVisualization();
+      updateYearMarker();
     });
 
   d3.select("#year-label").text(selectedYear);
@@ -278,6 +290,7 @@ function togglePlay() {
       slider.value = selectedYear;
       d3.select("#year-label").text(selectedYear);
       updateVisualization();
+      updateYearMarker();
     }, 1000);
   }
 }
@@ -505,6 +518,344 @@ function updateSummary(filteredData) {
     Suitable grid cells: <strong>${suitableCount}</strong> / ${totalCount}
     (${percentSuitable}%)
   `);
+}
+
+// -----------------------------
+// Impact chart: DID precomputation
+// -----------------------------
+
+const SCENARIOS = ["ssp126", "ssp245", "ssp585"];
+const REF_SCENARIO = "ssp245";
+
+function cellKey(lat, lon) {
+  return `${Math.round(+lat * 1000) / 1000},${Math.round(+lon * 1000) / 1000}`;
+}
+
+function precomputeDIDSeries() {
+  didSeries = {};
+  if (!fruitRegions || !climateData.length) return;
+
+  // Index climate data: key -> scenario -> year -> chill_days
+  const index = new Map();
+  for (const d of climateData) {
+    const key = cellKey(d.lat, d.lon);
+    let scMap = index.get(key);
+    if (!scMap) { scMap = new Map(); index.set(key, scMap); }
+    let yrMap = scMap.get(d.scenario);
+    if (!yrMap) { yrMap = new Map(); scMap.set(d.scenario, yrMap); }
+    yrMap.set(d.year, d.chill_days);
+  }
+
+  const years = uniqueYears();
+
+  for (const fruit of Object.keys(fruitRegions)) {
+    didSeries[fruit] = {};
+    for (const sub of Object.keys(fruitRegions[fruit])) {
+      const keys = fruitRegions[fruit][sub].map(([lat, lon]) => cellKey(lat, lon));
+
+      // Per-scenario mean chill per year (averaged over cells)
+      const meanByScenario = {};
+      for (const sc of SCENARIOS) {
+        meanByScenario[sc] = new Map();
+        for (const y of years) {
+          let sum = 0, n = 0;
+          for (const k of keys) {
+            const v = index.get(k)?.get(sc)?.get(y);
+            if (Number.isFinite(v)) { sum += v; n++; }
+          }
+          meanByScenario[sc].set(y, n > 0 ? sum / n : null);
+        }
+      }
+
+      // Centered 10-year rolling mean: window [i-4, i+5], clipped at edges
+      const smoothed = {};
+      for (const sc of SCENARIOS) {
+        smoothed[sc] = new Map();
+        for (let i = 0; i < years.length; i++) {
+          const lo = Math.max(0, i - 4);
+          const hi = Math.min(years.length - 1, i + 5);
+          let sum = 0, n = 0;
+          for (let j = lo; j <= hi; j++) {
+            const v = meanByScenario[sc].get(years[j]);
+            if (Number.isFinite(v)) { sum += v; n++; }
+          }
+          smoothed[sc].set(years[i], n > 0 ? sum / n : null);
+        }
+      }
+
+      // Baseline: mean of smoothed for 2020-2029, per scenario
+      const baseline = {};
+      const baseYears = years.filter(y => y >= 2020 && y <= 2029);
+      for (const sc of SCENARIOS) {
+        let sum = 0, n = 0;
+        for (const y of baseYears) {
+          const v = smoothed[sc].get(y);
+          if (Number.isFinite(v)) { sum += v; n++; }
+        }
+        baseline[sc] = n > 0 ? sum / n : 0;
+      }
+
+      // delta(sc, y) = smoothed(sc, y) - baseline(sc)
+      const delta = {};
+      for (const sc of SCENARIOS) {
+        delta[sc] = new Map();
+        for (const y of years) {
+          const v = smoothed[sc].get(y);
+          delta[sc].set(y, Number.isFinite(v) ? v - baseline[sc] : null);
+        }
+      }
+
+      // did(sc, y) = delta(sc, y) - delta(ref, y)
+      didSeries[fruit][sub] = {};
+      for (const sc of SCENARIOS) {
+        const pts = [];
+        for (const y of years) {
+          const a = delta[sc].get(y);
+          const b = delta[REF_SCENARIO].get(y);
+          if (Number.isFinite(a) && Number.isFinite(b)) {
+            pts.push({ year: y, did: a - b });
+          }
+        }
+        didSeries[fruit][sub][sc] = pts;
+      }
+    }
+  }
+}
+
+// -----------------------------
+// Impact chart: render
+// -----------------------------
+
+const SUBREGION_STATES = {
+  Apple:  { Pacific: "WA, OR",     Continental: "NY, MI, PA, VA" },
+  Cherry: { Pacific: "WA, OR, CA", Continental: "MI, UT" }
+};
+
+const SCENARIO_STYLE = {
+  ssp126: { stroke: "#1f77b4", width: 2,   dash: null,  opacity: 0.95 },
+  ssp245: { stroke: "#ff7f0e", width: 1.4, dash: "3 3", opacity: 0.7  },
+  ssp585: { stroke: "#d62728", width: 2,   dash: null,  opacity: 0.95 }
+};
+
+const IMPACT_CHART_W = 960;
+const IMPACT_MARGIN = { top: 32, right: 24, bottom: 44, left: 64 };
+
+function renderImpactChart(fruit) {
+  const chartSvg = d3.select("#impact-chart");
+  chartSvg.selectAll("*").remove();
+
+  if (!didSeries || !didSeries[fruit]) return;
+
+  const subRegions = Object.keys(didSeries[fruit]);
+  const subOrder = { Pacific: 0, Continental: 1, All: 0 };
+  subRegions.sort((a, b) => (subOrder[a] ?? 99) - (subOrder[b] ?? 99));
+
+  const split = subRegions.length > 1;
+  const subH = split ? 270 : 300;
+  const gap = 20;
+  const totalH = split ? (subH * 2 + gap) : subH;
+
+  chartSvg
+    .attr("viewBox", `0 0 ${IMPACT_CHART_W} ${totalH}`)
+    .attr("height", totalH);
+
+  // Shared symmetric y-domain (padded to 5, 0 centered)
+  let yMin = 0, yMax = 0;
+  for (const sub of subRegions) {
+    for (const sc of SCENARIOS) {
+      for (const pt of didSeries[fruit][sub][sc] || []) {
+        if (pt.did < yMin) yMin = pt.did;
+        if (pt.did > yMax) yMax = pt.did;
+      }
+    }
+  }
+  let extent = Math.max(Math.abs(yMin), Math.abs(yMax), 5);
+  extent = Math.ceil(extent / 5) * 5;
+  const yDomain = [-extent, extent];
+
+  // Header (set once, fruit-agnostic) — keep neutral so subplot titles carry the per-fruit naming
+  d3.select("#impact-chart-title").text("Production-region chill-day change");
+
+  // Legend
+  const legendDiv = d3.select("#impact-chart-legend");
+  legendDiv.html("");
+  const items = [
+    { sc: "ssp126", label: "SSP1-2.6 (aggressive mitigation)" },
+    { sc: "ssp245", label: "SSP2-4.5 (current trajectory, reference)" },
+    { sc: "ssp585", label: "SSP5-8.5 (high emissions)" }
+  ];
+  for (const it of items) {
+    const style = SCENARIO_STYLE[it.sc];
+    const item = legendDiv.append("span").attr("class", "legend-item");
+    const swatch = item.append("span").attr("class", "legend-swatch");
+    if (style.dash) {
+      swatch.style("background",
+        `repeating-linear-gradient(to right, ${style.stroke} 0 5px, transparent 5px 9px)`);
+    } else {
+      swatch.style("background", style.stroke);
+    }
+    item.append("span").text(it.label);
+  }
+
+  // Subplots
+  subRegions.forEach((sub, idx) => {
+    const yOff = idx * (subH + gap);
+    const subG = chartSvg.append("g")
+      .attr("class", `subplot subplot-${sub.toLowerCase()}`)
+      .attr("transform", `translate(0, ${yOff})`);
+    drawImpactSubplot(subG, fruit, sub, IMPACT_CHART_W, subH, yDomain);
+  });
+
+  // Caption + methodology note
+  d3.select("#impact-chart-caption").text(
+    `Chill-day change in top US ${fruit} production regions, relative to staying on the current-trajectory (SSP2-4.5) path. Each scenario anchored to its own 2020s decadal mean; 10-year rolling smoothing applied.`
+  );
+
+  if (split) {
+    d3.select("#impact-chart-note")
+      .style("display", "")
+      .text(`${fruit} shown split because its growing regions span Pacific and Continental climates, which respond differently to higher emissions.`);
+  } else {
+    d3.select("#impact-chart-note").style("display", "none").text("");
+  }
+}
+
+function drawImpactSubplot(g, fruit, sub, w, h, yDomain) {
+  const m = IMPACT_MARGIN;
+  const innerW = w - m.left - m.right;
+  const innerH = h - m.top - m.bottom;
+
+  const xs = d3.scaleLinear().domain([2020, 2100]).range([m.left, m.left + innerW]);
+  const ys = d3.scaleLinear().domain(yDomain).range([m.top + innerH, m.top]);
+
+  // Gridlines
+  const yTicks = ys.ticks(6);
+  g.append("g").attr("class", "gridlines")
+    .selectAll("line")
+    .data(yTicks)
+    .join("line")
+    .attr("x1", m.left).attr("x2", m.left + innerW)
+    .attr("y1", d => ys(d)).attr("y2", d => ys(d))
+    .attr("stroke", "#e2e2e2")
+    .attr("stroke-dasharray", "2 2");
+
+  // Axes
+  const xAxis = d3.axisBottom(xs)
+    .tickValues(d3.range(2020, 2101, 10))
+    .tickFormat(d3.format("d"));
+  g.append("g")
+    .attr("class", "axis x-axis")
+    .attr("transform", `translate(0, ${m.top + innerH})`)
+    .call(xAxis);
+
+  const yAxis = d3.axisLeft(ys)
+    .tickValues(yTicks)
+    .tickFormat(d => (d > 0 ? "+" : "") + d);
+  g.append("g")
+    .attr("class", "axis y-axis")
+    .attr("transform", `translate(${m.left}, 0)`)
+    .call(yAxis);
+
+  // Axis labels
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("x", m.left + innerW / 2)
+    .attr("y", m.top + innerH + 34)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 12)
+    .attr("fill", "#444")
+    .text("Year");
+
+  g.append("text")
+    .attr("class", "axis-label")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -(m.top + innerH / 2))
+    .attr("y", m.left - 46)
+    .attr("text-anchor", "middle")
+    .attr("font-size", 12)
+    .attr("fill", "#444")
+    .text("Chill-day change vs SSP2-4.5");
+
+  // Bold zero-line on top of gridlines
+  g.append("line")
+    .attr("class", "zero-line")
+    .attr("x1", m.left).attr("x2", m.left + innerW)
+    .attr("y1", ys(0)).attr("y2", ys(0))
+    .attr("stroke", "#444").attr("stroke-width", 1);
+
+  // Year marker
+  const xm = xs(selectedYear);
+  g.append("line")
+    .attr("class", "year-marker")
+    .attr("x1", xm).attr("x2", xm)
+    .attr("y1", m.top).attr("y2", m.top + innerH)
+    .attr("stroke", "#888").attr("stroke-width", 1)
+    .attr("stroke-dasharray", "4 3");
+
+  // Series (draw ref first so it sits beneath the two scenarios visually)
+  const lineGen = d3.line().x(d => xs(d.year)).y(d => ys(d.did));
+  for (const sc of ["ssp245", "ssp126", "ssp585"]) {
+    const data = didSeries[fruit][sub][sc];
+    if (!data || !data.length) continue;
+    const style = SCENARIO_STYLE[sc];
+    const path = g.append("path")
+      .datum(data)
+      .attr("class", `series series-${sc}`)
+      .attr("fill", "none")
+      .attr("stroke", style.stroke)
+      .attr("stroke-width", style.width)
+      .attr("opacity", style.opacity)
+      .attr("d", lineGen);
+    if (style.dash) path.attr("stroke-dasharray", style.dash);
+  }
+
+  // Subplot title
+  let title;
+  if (sub === "All") {
+    title = `${fruit} production regions`;
+  } else {
+    const states = SUBREGION_STATES[fruit]?.[sub] || "";
+    title = `${sub} ${fruit} regions${states ? ` (${states})` : ""}`;
+  }
+  g.append("text")
+    .attr("class", "subplot-title")
+    .attr("x", m.left)
+    .attr("y", m.top - 12)
+    .attr("font-size", 14)
+    .attr("font-weight", 700)
+    .attr("fill", "#222")
+    .text(title);
+}
+
+function updateYearMarker() {
+  const chartSvg = d3.select("#impact-chart");
+  if (chartSvg.empty()) return;
+  const innerW = IMPACT_CHART_W - IMPACT_MARGIN.left - IMPACT_MARGIN.right;
+  const xs = d3.scaleLinear().domain([2020, 2100]).range([IMPACT_MARGIN.left, IMPACT_MARGIN.left + innerW]);
+  const xm = xs(selectedYear);
+  chartSvg.selectAll(".subplot .year-marker")
+    .attr("x1", xm).attr("x2", xm);
+}
+
+// -----------------------------
+// Production-region highlights on map
+// -----------------------------
+
+function updateProductionHighlights() {
+  if (!fruitRegions) return;
+  const subs = fruitRegions[selectedFruit] || {};
+  const set = new Set();
+  for (const sub of Object.keys(subs)) {
+    for (const [lat, lon] of subs[sub]) {
+      set.add(cellKey(lat, lon));
+    }
+  }
+  climateLayer.selectAll(".climate-cell")
+    .classed("production-cell", d => set.has(cellKey(d.lat, d.lon)));
+
+  d3.select("#production-caption").text(
+    `Outlined cells = top US ${selectedFruit} production regions.`
+  );
 }
 
 // -----------------------------

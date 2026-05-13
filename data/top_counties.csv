@@ -1,0 +1,55 @@
+fruit,county_name,state,fips,lat,lon,subregion
+Apple,Yakima,WA,53077,46.62,-120.51,Pacific
+Apple,Chelan,WA,53007,47.85,-120.62,Pacific
+Apple,Grant,WA,53025,47.21,-119.45,Pacific
+Apple,Okanogan,WA,53047,48.55,-119.74,Pacific
+Apple,Hood River,OR,41027,45.52,-121.66,Pacific
+Apple,Wayne,NY,36117,43.16,-77.00,Continental
+Apple,Orleans,NY,36073,43.30,-78.20,Continental
+Apple,Niagara,NY,36063,43.31,-78.67,Continental
+Apple,Ulster,NY,36111,41.90,-74.10,Continental
+Apple,Ottawa,MI,26139,42.98,-85.93,Continental
+Apple,Berrien,MI,26021,42.00,-86.41,Continental
+Apple,Van Buren,MI,26159,42.30,-86.00,Continental
+Apple,Kent,MI,26081,43.04,-85.55,Continental
+Apple,Leelanau,MI,26089,44.89,-86.00,Continental
+Apple,Adams,PA,42001,39.87,-77.22,Continental
+Apple,Franklin,PA,42055,39.93,-77.72,Continental
+Apple,Frederick,VA,51069,39.20,-78.30,Continental
+Cherry,Yakima,WA,53077,46.62,-120.51,Pacific
+Cherry,Chelan,WA,53007,47.85,-120.62,Pacific
+Cherry,Grant,WA,53025,47.21,-119.45,Pacific
+Cherry,Wasco,OR,41065,45.30,-120.96,Pacific
+Cherry,Hood River,OR,41027,45.52,-121.66,Pacific
+Cherry,San Joaquin,CA,06077,38.00,-121.30,Pacific
+Cherry,Stanislaus,CA,06099,37.55,-121.00,Pacific
+Cherry,Fresno,CA,06019,36.75,-119.80,Pacific
+Cherry,Tulare,CA,06107,36.22,-118.80,Pacific
+Cherry,Leelanau,MI,26089,44.89,-86.00,Continental
+Cherry,Grand Traverse,MI,26055,44.74,-85.55,Continental
+Cherry,Antrim,MI,26009,44.99,-85.20,Continental
+Cherry,Benzie,MI,26019,44.62,-86.00,Continental
+Cherry,Manistee,MI,26101,44.24,-86.10,Continental
+Cherry,Oceana,MI,26127,43.50,-86.30,Continental
+Cherry,Mason,MI,26105,43.99,-86.30,Continental
+Cherry,Utah,UT,49049,40.13,-111.66,Continental
+Cherry,Box Elder,UT,49003,41.51,-112.50,Continental
+Pear,Hood River,OR,41027,45.52,-121.66,All
+Pear,Wasco,OR,41065,45.30,-120.96,All
+Pear,Jackson,OR,41029,42.45,-122.85,All
+Pear,Yakima,WA,53077,46.62,-120.51,All
+Pear,Chelan,WA,53007,47.85,-120.62,All
+Pear,Lake,CA,06033,39.10,-122.78,All
+Pear,Mendocino,CA,06045,39.43,-123.41,All
+Pear,Sacramento,CA,06067,38.45,-121.34,All
+Pear,Sutter,CA,06101,39.03,-121.69,All
+Plum,Sutter,CA,06101,39.03,-121.69,All
+Plum,Butte,CA,06007,39.66,-121.60,All
+Plum,Yuba,CA,06115,39.27,-121.35,All
+Plum,Tehama,CA,06103,40.13,-122.23,All
+Plum,Glenn,CA,06021,39.60,-122.39,All
+Plum,Tulare,CA,06107,36.22,-118.80,All
+Plum,Fresno,CA,06019,36.75,-119.80,All
+Plum,Merced,CA,06047,37.20,-120.72,All
+Plum,Yolo,CA,06113,38.69,-121.90,All
+Plum,Colusa,CA,06009,39.18,-122.24,All
