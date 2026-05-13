@@ -24,45 +24,53 @@
     <h1>Write-Up</h1>
     <div id="writeup-card">
       <div id="writeup-body">
-        A rationale for your design decisions. How did you choose your particular visual encodings and interaction techniques? What alternatives did you consider and how did you arrive at your ultimate choices?
 
-Decision choices:
-Diverging color scale
-We chose a diverging color scale because the main value we want users to interpret is not simply “how many chill days are there,” but whether a location is above or below the selected fruit’s requirement. Warm colors represent places that fall short of the requirement, light colors represent areas near the threshold, and cool colors represent places with enough chill days. These colors are also indicative of temperature symbolism, since blue is often used to represent the cold (more chill days/positive gap) and red represents warm (less chill days/negative gap). We initially considered coloring the map by raw chill-day counts, but that made the fruit selector less meaningful because the map would look mostly the same across fruits. Instead, we color by the gap between actual chill days and the selected fruit’s chill requirement. The diverging color scale was originally going to be green to red to represent the suitability (green as valid and red as invalid), but we realized this would make the map difficult to interpret for colorblind viewers and decided to pick a scale that goes from blue to red.This means changing from a lower-chill fruit to a higher-chill fruit directly changes the map, helping users see how fruit-specific suitability changes. Moreover, when using the play feature, it becomes very clear how specific climate grid cells change in color abruptly (gap of 1 becoming -1 within a year). 
-Map projection choice
-We first used d3.geoAlbersUsa() because it is commonly used for U.S. maps and gives a geographically familiar shape. However, our data comes from latitude-longitude climate grid cells, and Albers projection bent the grid in ways that made the rectangular climate cells look awkward. We switched toward a more rectangular/equirectangular-style projection because it preserves the gridded structure more clearly, which better matches the CMIP6 data format.
-Grid-cell-level data instead of state-level aggregation
-We considered aggregating the data by state because state choropleths are cleaner and easier to interpret. However, state-level aggregation hides important within-state variation, especially in large states like California, Washington, and Oregon where elevation and coastal effects matter. We ultimately kept grid-cell-level data because it better shows regional patterns and the shifting fruit belt, even though it made the map harder to implement.
-We considered adding a regional drill-down feature where users could click on a state or region for more detailed information. However, this conflicted with our tooltip interaction because the visualization already supports grid-cell-level inspection on hover, and clicking on a state would make it unclear whether the user wanted state-level information or individual grid-cell information. We decided to keep the map at the grid-cell level because our project is about America’s changing fruit belt, and the grid structure shows belt-like spatial patterns more clearly than state-level aggregation.
-Interactive controls and details-on-demand
-We combined a fruit selector, scenario selector, year slider with a play button, and hover tooltips to support exploration from multiple angles. The fruit selector changes the chill-day requirement, the scenario selector lets users compare different climate futures, and the time slider/play button shows how suitability changes over the century. The tooltip provides details-on-demand for individual grid cells, so users can inspect exact chill days, requirement gaps, and suitability without overcrowding the map.
+  <h2>Design Rationale</h2>
+  <p>How did you choose your particular visual encodings and interaction techniques? What alternatives did you consider and how did you arrive at your ultimate choices?</p>
 
-An overview of your development process. Describe how the work was split among the team members. Include a commentary on the development process, including answers to the following questions: Roughly how much time did you spend developing your application (in people-hours)? What aspects took the most time?
+  <h3>Diverging Color Scale</h3>
+  <p>We chose a diverging color scale because the main value we want users to interpret is not simply "how many chill days are there," but whether a location is above or below the selected fruit's requirement. Warm colors represent places that fall short of the requirement, light colors represent areas near the threshold, and cool colors represent places with enough chill days. These colors are also indicative of temperature symbolism, since blue is often used to represent the cold (more chill days/positive gap) and red represents warm (less chill days/negative gap).</p>
+  <p>We initially considered coloring the map by raw chill-day counts, but that made the fruit selector less meaningful because the map would look mostly the same across fruits. Instead, we color by the gap between actual chill days and the selected fruit's chill requirement. The diverging color scale was originally going to be green to red to represent the suitability (green as valid and red as invalid), but we realized this would make the map difficult to interpret for colorblind viewers and decided to pick a scale that goes from blue to red. This means changing from a lower-chill fruit to a higher-chill fruit directly changes the map, helping users see how fruit-specific suitability changes. Moreover, when using the play feature, it becomes very clear how specific climate grid cells change in color abruptly (gap of 1 becoming -1 within a year).</p>
 
-Work Split:
-Qicheng Zou: Processed and generated chill day data; built the D3 map over US map; Implemented core interactions, including zoom, tooltip, fruit selector, scenario selector, and year slider.
-Ani Boppana: Did initial research to fine-tune the research topic and created the year play/pause functionality and integrated the write-up into the website.
-Aaron Marasco:
-Nate Nero: Created prototype combined line chart showing percentage of suitable land for selected fruit type.
+  <h3>Map Projection Choice</h3>
+  <p>We first used <code>d3.geoAlbersUsa()</code> because it is commonly used for U.S. maps and gives a geographically familiar shape. However, our data comes from latitude-longitude climate grid cells, and Albers projection bent the grid in ways that made the rectangular climate cells look awkward. We switched toward a more rectangular/equirectangular-style projection because it preserves the gridded structure more clearly, which better matches the CMIP6 data format.</p>
 
-Development Process Overview
-Data preprocessing and chill-day calculation
-Time spent: ~1 people-hours
-We used Python to retrieve daily minimum temperature data, subset it to the continental U.S., convert temperature from Kelvin to Fahrenheit, and calculate annual chill days. This was one of the most time-consuming parts because the raw climate data was large, slow to process, and not directly usable in D3. After computing chill days, we exported a smaller CSV with latitude, longitude, year, scenario, and chill-day count. We also refined the grid resolution so the final map looked smoother while still keeping the file size manageable for browser rendering.
-Initial D3 map implementation
-Time spent: ~4 people-hours
-We first built a basic D3 map with climate grid cells over U.S. state boundaries. This helped us test whether the processed CSV could load correctly and whether the fruit, scenario, and year controls could update the visualization. Projection and geographic rendering took the most time. We tried several approaches, including point maps, rectangular grid cells, Voronoi-style surfaces, Albers projection, and equirectangular-style grid rendering. The main challenge was that CMIP6 data is based on latitude-longitude grid cells, not state boundaries, so making the map look clean while preserving the grid-level “fruit belt” pattern required a lot of work.
-Interactive controls and tooltip design
-Time spent: ~2 people-hours
-We added the fruit selector, scenario selector, year slider, play button, hover tooltip, and current selection card. Once the data structure and map rendering were stable, these interactions were easier to implement, but we still had to make sure each interaction meaningfully changed what users saw.
-Color encoding and legend design
-Time spent: ~[TODO] people-hours
-We decided to color the map by the gap between actual chill days and the selected fruit’s chill requirement, rather than raw chill days. This made the fruit selector more meaningful because the map changes depending on which fruit is selected.
-Top 3 states chart by selected fruit
-Time spent: ~[TODO] people-hours
-We added a small chart that updates when the user selects a fruit, showing the top three states with the highest suitability for that fruit. This gives users a quick summary of which regions are most favorable without requiring them to inspect every grid cell on the map. We plotted chill-day changes over time for top US production regions for each fruit across the different climate scenarios, using SSP2-4.5 as a baseline reference. 
+  <h3>Grid-Cell-Level Data Instead of State-Level Aggregation</h3>
+  <p>We considered aggregating the data by state because state choropleths are cleaner and easier to interpret. However, state-level aggregation hides important within-state variation, especially in large states like California, Washington, and Oregon where elevation and coastal effects matter. We ultimately kept grid-cell-level data because it better shows regional patterns and the shifting fruit belt, even though it made the map harder to implement.</p>
+  <p>We considered adding a regional drill-down feature where users could click on a state or region for more detailed information. However, this conflicted with our tooltip interaction because the visualization already supports grid-cell-level inspection on hover, and clicking on a state would make it unclear whether the user wanted state-level information or individual grid-cell information. We decided to keep the map at the grid-cell level because our project is about America's changing fruit belt, and the grid structure shows belt-like spatial patterns more clearly than state-level aggregation.</p>
 
-      </div>
+  <h3>Interactive Controls and Details-on-Demand</h3>
+  <p>We combined a fruit selector, scenario selector, year slider with a play button, and hover tooltips to support exploration from multiple angles. The fruit selector changes the chill-day requirement, the scenario selector lets users compare different climate futures, and the time slider/play button shows how suitability changes over the century. The tooltip provides details-on-demand for individual grid cells, so users can inspect exact chill days, requirement gaps, and suitability without overcrowding the map.</p>
+
+  <hr>
+
+  <h2>Development Process</h2>
+  <p>Describe how the work was split among the team members. Roughly how much time did you spend developing your application (in people-hours)? What aspects took the most time?</p>
+
+  <h3>Work Split</h3>
+  <ul>
+    <li><strong>Qicheng Zou:</strong> Processed and generated chill day data; built the D3 map over US map; implemented core interactions, including zoom, tooltip, fruit selector, scenario selector, and year slider.</li>
+    <li><strong>Ani Boppana:</strong> Did initial research to fine-tune the research topic and created the year play/pause functionality and integrated the write-up into the website.</li>
+    <li><strong>Aaron Marasco:</strong> [TODO]</li>
+    <li><strong>Nate Nero:</strong> Created prototype combined line chart showing percentage of suitable land for selected fruit type.</li>
+  </ul>
+
+  <h3>Data Preprocessing and Chill-Day Calculation <em>(~1 person-hour)</em></h3>
+  <p>We used Python to retrieve daily minimum temperature data, subset it to the continental U.S., convert temperature from Kelvin to Fahrenheit, and calculate annual chill days. This was one of the most time-consuming parts because the raw climate data was large, slow to process, and not directly usable in D3. After computing chill days, we exported a smaller CSV with latitude, longitude, year, scenario, and chill-day count. We also refined the grid resolution so the final map looked smoother while still keeping the file size manageable for browser rendering.</p>
+
+  <h3>Initial D3 Map Implementation <em>(~4 person-hours)</em></h3>
+  <p>We first built a basic D3 map with climate grid cells over U.S. state boundaries. This helped us test whether the processed CSV could load correctly and whether the fruit, scenario, and year controls could update the visualization. Projection and geographic rendering took the most time. We tried several approaches, including point maps, rectangular grid cells, Voronoi-style surfaces, Albers projection, and equirectangular-style grid rendering. The main challenge was that CMIP6 data is based on latitude-longitude grid cells, not state boundaries, so making the map look clean while preserving the grid-level "fruit belt" pattern required a lot of work.</p>
+
+  <h3>Interactive Controls and Tooltip Design <em>(~2 person-hours)</em></h3>
+  <p>We added the fruit selector, scenario selector, year slider, play button, hover tooltip, and current selection card. Once the data structure and map rendering were stable, these interactions were easier to implement, but we still had to make sure each interaction meaningfully changed what users saw.</p>
+
+  <h3>Color Encoding and Legend Design <em>(~[TODO] person-hours)</em></h3>
+  <p>We decided to color the map by the gap between actual chill days and the selected fruit's chill requirement, rather than raw chill days. This made the fruit selector more meaningful because the map changes depending on which fruit is selected.</p>
+
+  <h3>Impact Chart by Production Region <em>(~[TODO] person-hours)</em></h3>
+  <p>We added a chart that updates when the user selects a fruit, showing chill-day changes over time for top U.S. production regions across the different climate scenarios, using SSP2-4.5 as a baseline reference. This gives users a quick summary of which regions are most favorable without requiring them to inspect every grid cell on the map.</p>
+
+</div>
     </div>
   </main>
 </body>
